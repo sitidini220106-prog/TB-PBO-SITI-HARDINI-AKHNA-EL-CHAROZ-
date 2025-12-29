@@ -52,6 +52,12 @@ public class Order {
 
     public String getOrderDate() {
         return orderDate;
+        
     }
+    // Setter untuk mengatur tanggal order (dibutuhkan untuk READ dari database)
+public void setOrderDate(String orderDate) {
+    this.orderDate = orderDate;
 }
+}
+
 
