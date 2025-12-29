@@ -1,13 +1,21 @@
 package repositories;
 
 import java.sql.*;
+import java.util.ArrayList;   // COLLECTION FRAMEWORK
+import java.util.List;
+
 import config.DBConnection;
 import models.Order;
+import models.Customer;
+import models.RegularCustomer;
+import services.KiloanService;
+import services.LaundryService;
 
 public class OrderRepository {
 
-    // CREATE
+    // ================= CREATE =================
     public void insert(Order order) {
+
         String sql = "INSERT INTO orders (customer_name, service_name, quantity, total, order_date) VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = DBConnection.getConnection();
@@ -27,77 +35,91 @@ public class OrderRepository {
         }
     }
 
-    // READ
-public void getAll() {
-    String sql = "SELECT * FROM orders";
+    // ================= READ (COLLECTION FRAMEWORK) =================
+    public void getAll() {
 
-    try (Connection conn = DBConnection.getConnection();
-         Statement stmt = conn.createStatement();
-         ResultSet rs = stmt.executeQuery(sql)) {
+        // COLLECTION FRAMEWORK
+        List<Order> orders = new ArrayList<>();
 
-        System.out.println("ID | Customer | Service | Qty | Total | Order Date");
+        String sql = "SELECT * FROM orders";
 
-        while (rs.next()) {
-            System.out.println(
-                rs.getInt("id") + " | " +
-                rs.getString("customer_name") + " | " +
-                rs.getString("service_name") + " | " +
-                rs.getDouble("quantity") + " | " +
-                rs.getDouble("total") + " | " +
-                rs.getTimestamp("order_date")
-            );
+        try (Connection conn = DBConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+
+                // Ambil data dari database
+                String name = rs.getString("customer_name");
+                double qty = rs.getDouble("quantity");
+                String date = rs.getString("order_date");
+
+                // Object pendukung
+                Customer customer = new RegularCustomer(name);
+                LaundryService service = new KiloanService();
+
+                // Object Order
+                Order order = new Order(customer, service, qty);
+                order.setOrderDate(date);
+
+                // SIMPAN KE COLLECTION
+                orders.add(order);
+            }
+
+            // TAMPILKAN DATA DARI COLLECTION
+            System.out.println("\n=== DATA ORDER ===");
+            for (Order o : orders) {
+                System.out.println(o.getCustomer().getName()
+                        + " | " + o.getQuantity() + " kg"
+                        + " | Rp " + o.getTotal()
+                        + " | " + o.getOrderDate());
+            }
+
+        } catch (Exception e) {
+            System.out.println("Read error: " + e.getMessage());
         }
-
-    } catch (Exception e) {
-        System.out.println("Read error: " + e.getMessage());
     }
-}
 
-// UPDATE: tambah jumlah laundry dan hitung ulang total
-public void updateQuantity(int id, double tambahanQty) {
+    // ================= UPDATE =================
+    public void updateQuantity(int id, double tambahanKg) {
 
-    String selectSql = "SELECT quantity, total FROM orders WHERE id=?";
-    String updateSql = "UPDATE orders SET quantity=?, total=? WHERE id=?";
+        String sqlSelect = "SELECT quantity FROM orders WHERE id=?";
+        String sqlUpdate = "UPDATE orders SET quantity=?, total=? WHERE id=?";
 
-    try (Connection conn = DBConnection.getConnection();
-         PreparedStatement selectStmt = conn.prepareStatement(selectSql)) {
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement psSelect = conn.prepareStatement(sqlSelect)) {
 
-        // Ambil data lama
-        selectStmt.setInt(1, id);
-        ResultSet rs = selectStmt.executeQuery();
+            psSelect.setInt(1, id);
+            ResultSet rs = psSelect.executeQuery();
 
-        if (rs.next()) {
+            if (rs.next()) {
 
-            double qtyLama = rs.getDouble("quantity");
-            double totalLama = rs.getDouble("total");
+                double lama = rs.getDouble("quantity");
+                double baru = lama + tambahanKg;
 
-            // Hitung harga per kg
-            double hargaPerKg = totalLama / qtyLama;
+                double hargaPerKg = 5000;
+                double totalBaru = baru * hargaPerKg;
 
-            // Hitung data baru
-            double qtyBaru = qtyLama + tambahanQty;
-            double totalBaru = qtyBaru * hargaPerKg;
+                PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate);
+                psUpdate.setDouble(1, baru);
+                psUpdate.setDouble(2, totalBaru);
+                psUpdate.setInt(3, id);
+                psUpdate.executeUpdate();
 
-            // Update ke database
-            PreparedStatement updateStmt = conn.prepareStatement(updateSql);
-            updateStmt.setDouble(1, qtyBaru);
-            updateStmt.setDouble(2, totalBaru);
-            updateStmt.setInt(3, id);
-            updateStmt.executeUpdate();
+                System.out.println("Order berhasil diupdate");
 
-            System.out.println("Order berhasil diupdate.");
+            } else {
+                System.out.println("ID tidak ditemukan");
+            }
 
-        } else {
-            System.out.println("Order dengan ID tersebut tidak ditemukan.");
+        } catch (Exception e) {
+            System.out.println("Update error: " + e.getMessage());
         }
-
-    } catch (Exception e) {
-        System.out.println("Update error: " + e.getMessage());
     }
-}
 
-    // DELETE
+    // ================= DELETE =================
     public void delete(int id) {
+
         String sql = "DELETE FROM orders WHERE id=?";
 
         try (Connection conn = DBConnection.getConnection();
@@ -112,3 +134,4 @@ public void updateQuantity(int id, double tambahanQty) {
         }
     }
 }
+
